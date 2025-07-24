@@ -2,38 +2,35 @@
 
 #include "FrameArena.hpp"
 #include "Job.hpp"
+#include "JobGraph.hpp"
 #include "ThreadArenaRegistry.hpp"
 
-struct PrintData {
-  const char* label;
-  int count;
+struct AddIntsNode : JobGraphNode<int, int> {
+  static void run(const int* input, int* output, FrameArena* arena) {
+    *output = *input + 42;
+  }
 };
 
-void printLabel(void* data) {
-  auto* pd = static_cast<PrintData*>(data);
-  std::cout << "[Job] " << pd->label << ": " << pd->count << "\n";
-}
+struct PrintInt : JobGraphNode<int> {
+  static void run(const int* input, FrameArena* arena) {
+    std::cout << "[Print Node]: " << *input << "\n";
+  }
+};
 
 int main() {
   FrameArena arena(1024);
   ThreadArenaRegistry::set(&arena);
 
-  PrintData* data = arena.allocate<PrintData>();
-  data->label = "Apples";
-  data->count = 5;
+  int input = 5;
+  int* output = arena.allocate<int>();
 
-  JobControlBlock control;
+  Job job = makeJob<AddIntsNode>(&input, output, &arena);
+  Job job2 = makeJob<PrintInt>(output, &arena);
 
-  Job job = {
-      .fn = &printLabel,
-      .userData = data,
-      .arena = &arena,
-      .control = &control,
-      .flags = JobFlags::None};
-
-  job.control->state = JobState::Running;
   job.fn(job.userData);
-  job.control->state = JobState::Completed;
+  std::cout << "Job output: " << *output << "\n";
+
+  job2.fn(job2.userData);
 
   ThreadArenaRegistry::clear();
 }
