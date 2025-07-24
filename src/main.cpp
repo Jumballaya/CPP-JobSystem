@@ -1,25 +1,39 @@
 #include <iostream>
 
-#include "ThreadPool.hpp"
+#include "FrameArena.hpp"
+#include "Job.hpp"
+#include "ThreadArenaRegistry.hpp"
+
+struct PrintData {
+  const char* label;
+  int count;
+};
+
+void printLabel(void* data) {
+  auto* pd = static_cast<PrintData*>(data);
+  std::cout << "[Job] " << pd->label << ": " << pd->count << "\n";
+}
 
 int main() {
-  ThreadPool pool(16);
+  FrameArena arena(1024);
+  ThreadArenaRegistry::set(&arena);
 
-  int i = 0;
-  while (true) {
-    if (i > 500) break;
+  PrintData* data = arena.allocate<PrintData>();
+  data->label = "Apples";
+  data->count = 5;
 
-    for (int j = 0; j < 16; ++j) {
-      pool.submit([i, j]() {
-        std::cout << "[Task <" << i << ", " << j << "> ] Running on thread " << std::this_thread::get_id() << "\n";
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-      });
-    }
+  JobControlBlock control;
 
-    pool.waitAll();
+  Job job = {
+      .fn = &printLabel,
+      .userData = data,
+      .arena = &arena,
+      .control = &control,
+      .flags = JobFlags::None};
 
-    ++i;
-  }
+  job.control->state = JobState::Running;
+  job.fn(job.userData);
+  job.control->state = JobState::Completed;
 
-  std::cout << "[Main] Exiting\n";
+  ThreadArenaRegistry::clear();
 }
