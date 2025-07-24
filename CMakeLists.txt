@@ -8,11 +8,15 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_executable(job_demo
   src/main.cpp
+  
+  src/ArenaVector.hpp
   src/FrameArena.hpp
   src/FrameArena.cpp
-  src/ThreadArenaRegistry.hpp
-  src/ThreadArenaRegistry.cpp
   src/Job.hpp
   src/JobGraph.hpp
   src/JobGraph.cpp
+  src/JobGraphNode.hpp
+  src/JobSystem.hpp
+  src/ThreadArenaRegistry.hpp
+  src/ThreadArenaRegistry.cpp
 )
