@@ -73,6 +73,10 @@ class ArenaVector {
     return *target;
   }
 
+  void clear() {
+    _size = 0;
+  }
+
   T* begin() { return _data; }
   T* end() { return _data + _size; }
 

@@ -10,6 +10,8 @@ class JobSystem {
  public:
   JobSystem(size_t threadCount);
 
+  void submit(Job& job);
+
   bool isComplete(const JobHandle& handle);
   bool isCancelled(const JobHandle& handle);
   bool cancel(JobHandle handle);
