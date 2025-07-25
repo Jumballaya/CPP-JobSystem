@@ -2,7 +2,7 @@
 
 #include "JobSystem.hpp"
 
-JobGraph::JobGraph(FrameArena* arena) : _arena(arena), _slots(arena, 256) {}
+JobGraph::JobGraph(FrameArena* arena, JobSystem* system) : _arena(arena), _system(system), _slots(arena, 256) {}
 
 void JobGraph::setDependencies(GraphNodeHandle node, std::initializer_list<GraphNodeHandle> deps) {
   assert(node.index < _slots.size());

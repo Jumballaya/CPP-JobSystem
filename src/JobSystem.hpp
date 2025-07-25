@@ -8,11 +8,19 @@
 
 class JobGraph;
 
+enum MemoryClass {
+  Frame,
+  LongLived
+};
+
 class JobSystem {
  public:
   JobSystem(size_t threadCount);
 
   void submit(Job& job);
+
+  JobGraph createGraph(MemoryClass cls = MemoryClass::Frame);
+  void submitGraph(JobGraph& graph);
 
   bool isComplete(const JobHandle& handle);
   bool isCancelled(const JobHandle& handle);

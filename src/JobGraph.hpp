@@ -23,10 +23,10 @@ class JobGraph {
  public:
   using OnGraphCompleteFn = void (*)(GraphNodeHandle, void*);
 
-  explicit JobGraph(FrameArena* arena);
+  explicit JobGraph(FrameArena* arena, JobSystem* system);
 
   template <typename Node, typename... Args>
-  GraphNodeHandle addNode(JobSystem& system, Args&&... args);
+  GraphNodeHandle addNode(Args&&... args);
 
   void setDependencies(GraphNodeHandle node, std::initializer_list<GraphNodeHandle> deps);
   void submitReadyJobs(JobSystem& system);
@@ -37,6 +37,7 @@ class JobGraph {
 
  private:
   FrameArena* _arena = nullptr;
+  JobSystem* _system = nullptr;
   ArenaVector<JobGraphNodeSlot> _slots;
 
   OnGraphCompleteFn _onComplete = nullptr;
@@ -44,7 +45,7 @@ class JobGraph {
 };
 
 template <typename Node, typename... Args>
-GraphNodeHandle JobGraph::addNode(JobSystem& system, Args&&... args) {
+GraphNodeHandle JobGraph::addNode(Args&&... args) {
   assert(_slots.size() < _slots.capacity() && "JobGraph capacity exceeded");
   _slots.emplace_back(_arena);
   auto& slot = _slots[_slots.size() - 1];
