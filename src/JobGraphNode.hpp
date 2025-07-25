@@ -60,6 +60,8 @@ concept IsJobGraphNode = IsJobGraphNodeWithOutput<T, In, Out> || IsJobGraphNodeN
 //
 //  Job Creation API
 //
+//  @TODO: Implement onComplete method on the job graph nodes bellow
+//
 template <typename Node, typename In, typename Out = void>
   requires IsJobGraphNode<Node, In, Out>
 Job makeJob(const In* input, Out* output, FrameArena* arena, JobSystem* system = nullptr, JobGraph* graph = nullptr, GraphNodeHandle handle = {}, JobFlags flags = JobFlags::None) {
@@ -88,6 +90,7 @@ Job makeJob(const In* input, Out* output, FrameArena* arena, JobSystem* system =
           d->graph->onJobComplete(d->handle, *d->system);
         }
       },
+      .onComplete = nullptr,
       .userData = data,
       .arena = arena,
       .control = nullptr,
@@ -120,6 +123,7 @@ Job makeJob(const In* input, FrameArena* arena, JobSystem* system = nullptr, Job
           d->graph->onJobComplete(d->handle, *d->system);
         }
       },
+      .onComplete = nullptr,
       .userData = data,
       .arena = arena,
       .control = nullptr,

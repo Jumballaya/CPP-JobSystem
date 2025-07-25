@@ -43,6 +43,7 @@ struct Job {
   using JobFn = void (*)(void*);
 
   JobFn fn = nullptr;
+  JobFn onComplete = nullptr;
   void* userData = nullptr;
   FrameArena* arena = nullptr;
   JobControlBlock* control = nullptr;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <atomic>
+#include <cstdint>
 #include <initializer_list>
 #include <span>
 #include <utility>
@@ -14,9 +16,9 @@ struct JobGraphNodeSlot {
 
   Job job;
   ArenaVector<GraphNodeHandle> dependents;
-  uint32_t inDegree = 0;    // Number of inputs that must run before this node runs
-  uint32_t generation = 1;  // Lines up with the handle generation
-  bool scheduled = false;
+  std::atomic<uint32_t> inDegree = 0;  // Number of inputs that must run before this node runs
+  uint32_t generation = 1;             // Lines up with the handle generation
+  std::atomic<bool> scheduled = false;
 };
 
 class JobGraph {
