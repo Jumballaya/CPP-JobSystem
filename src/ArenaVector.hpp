@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstddef>
-#include <cstring>  // for memcpy
+#include <cstring>
 #include <span>
 #include <utility>
 
@@ -25,8 +25,8 @@ class ArenaVector {
       : _arena(other.arena), _data(other.data), _size(other.size), _capacity(other.capacity) {
     other._arena = nullptr;
     other._data = nullptr;
-    other.size = 0;
-    other.capacity = 0;
+    other._size = 0;
+    other._capacity = 0;
   }
   ArenaVector& operator=(ArenaVector&& other) noexcept {
     if (&other == this) {
@@ -40,8 +40,8 @@ class ArenaVector {
 
     other._arena = nullptr;
     other._data = nullptr;
-    other.size = 0;
-    other.capacity = 0;
+    other._size = 0;
+    other._capacity = 0;
 
     return *this;
   }

@@ -30,3 +30,26 @@ void JobGraph::submitReadyJobs(JobSystem& system) {
     }
   }
 }
+
+void JobGraph::onJobComplete(GraphNodeHandle node, JobSystem& system) {
+  assert(node.index < _slots.size());
+  JobGraphNodeSlot& slot = _slots[node.index];
+
+  for (GraphNodeHandle dep : slot.dependents) {
+    assert(dep.index < _slots.size());
+    JobGraphNodeSlot& depSlot = _slots[dep.index];
+
+    assert(depSlot.inDegree > 0);
+    --depSlot.inDegree;
+
+    if (depSlot.inDegree == 0 && !depSlot.scheduled) {
+      depSlot.scheduled = true;
+      system.submit(depSlot.job);
+    }
+  }
+}
+
+void JobGraph::setOnGraphComplete(OnGraphCompleteFn fn, void* userData) {
+  _onComplete = fn;
+  _onCompleteUserData = userData;
+}

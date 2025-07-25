@@ -5,6 +5,7 @@
 
 #include "FrameArena.hpp"
 #include "Job.hpp"
+#include "JobSystem.hpp"
 
 //
 //  Always start with a generation of 1 or greater when
@@ -57,28 +58,35 @@ template <typename T, typename In, typename Out = void>
 concept IsJobGraphNode = IsJobGraphNodeWithOutput<T, In, Out> || IsJobGraphNodeNoOutput<T, In>;
 
 //
-// @TODO: The following makeJob methods can be moved to the JobGraph or JobSystem
-//        where ever makes the most sense.
+//  Job Creation API
 //
-
 template <typename Node, typename In, typename Out = void>
   requires IsJobGraphNode<Node, In, Out>
-Job makeJob(const In* input, Out* output, FrameArena* arena, JobFlags flags = JobFlags::None) {
+Job makeJob(const In* input, Out* output, FrameArena* arena, JobSystem* system = nullptr, JobGraph* graph = nullptr, GraphNodeHandle handle = {}, JobFlags flags = JobFlags::None) {
   struct JobData {
     const In* input;
     Out* output;
     FrameArena* arena;
+    JobSystem* system;
+    JobGraph* graph;
+    GraphNodeHandle handle;
   };
 
   JobData* data = arena->allocate<JobData>();
   data->input = input;
   data->output = output;
   data->arena = arena;
+  data->system = system;
+  data->graph = graph;
+  data->handle = handle;
 
   return Job{
       .fn = [](void* userData) {
         auto* d = static_cast<JobData*>(userData);
         Node::run(d->input, d->output, d->arena);
+        if (d->graph && d->handle.isValid()) {
+          d->graph->onJobComplete(d->handle, *d->system);
+        }
       },
       .userData = data,
       .arena = arena,
@@ -88,20 +96,29 @@ Job makeJob(const In* input, Out* output, FrameArena* arena, JobFlags flags = Jo
 
 template <typename Node, typename In>
   requires IsJobGraphNode<Node, In>
-Job makeJob(const In* input, FrameArena* arena, JobFlags flags = JobFlags::None) {
+Job makeJob(const In* input, FrameArena* arena, JobSystem* system = nullptr, JobGraph* graph = nullptr, GraphNodeHandle handle = {}, JobFlags flags = JobFlags::None) {
   struct JobData {
     const In* input;
     FrameArena* arena;
+    JobSystem* system;
+    JobGraph* graph;
+    GraphNodeHandle handle;
   };
 
   JobData* data = arena->allocate<JobData>();
   data->input = input;
   data->arena = arena;
+  data->system = system;
+  data->graph = graph;
+  data->handle = handle;
 
   return Job{
       .fn = [](void* userData) {
         auto* d = static_cast<JobData*>(userData);
         Node::run(d->input, d->arena);
+        if (d->graph && d->handle.isValid()) {
+          d->graph->onJobComplete(d->handle, *d->system);
+        }
       },
       .userData = data,
       .arena = arena,

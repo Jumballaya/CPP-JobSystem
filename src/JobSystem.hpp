@@ -6,6 +6,8 @@
 
 #include "Job.hpp"
 
+class JobGraph;
+
 class JobSystem {
  public:
   JobSystem(size_t threadCount);
@@ -17,8 +19,14 @@ class JobSystem {
   bool cancel(JobHandle handle);
   void wait(JobHandle handle);
 
+  FrameArena& frameArena();
+  FrameArena& longLivedArena();
+
  private:
   size_t _threadCount;
 
   std::vector<std::thread> _threads;
+
+  FrameArena _frameArena;
+  FrameArena _longLivedArena;
 };

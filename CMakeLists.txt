@@ -17,6 +17,7 @@ add_executable(job_demo
   src/JobGraph.cpp
   src/JobGraphNode.hpp
   src/JobSystem.hpp
+  src/JobSystem.cpp
   src/ThreadArenaRegistry.hpp
   src/ThreadArenaRegistry.cpp
 )
