@@ -2,13 +2,16 @@
 
 #include <cstddef>
 #include <span>
+#include <utility>
 
 #include "FrameArena.hpp"
 
 template <typename T, size_t N>
 class ArenaArray {
  public:
-  explicit ArenaArray(FrameArena* arena) : _arena(arena), _data(_arena->allocate<T>(N)) {
+  explicit ArenaArray(FrameArena* arena) : _arena(arena), _data(nullptr), _size(0) {
+    static_assert(std::is_trivially_destructible_v<T>, "ArenaArray<T> only supports trivially destructible types");
+    _data = arena->allocate<T>(N);
     assert(_data && "Arena out of memory");
   }
 
@@ -34,6 +37,16 @@ class ArenaArray {
     other._data = nullptr;
     other._size = 0;
     return *this;
+  }
+
+  void push_back(const T& value) {
+    assert(_size < N && "ArenaArray capacity exceeded");
+    _storage[_size++] = value;
+  }
+
+  void push_back(T&& value) {
+    assert(_size < N && "ArenaArray capacity exceeded");
+    _storage[_size++] = std::move(value);
   }
 
   T& operator[](size_t i) {
