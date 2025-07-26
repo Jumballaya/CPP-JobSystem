@@ -56,9 +56,15 @@ class ArenaVector {
     return _data[i];
   }
 
+  void reserve(size_t size) {
+    if (_capacity < size) {
+      grow(size);
+    }
+  }
+
   void push_back(const T& value) {
     if (_size >= _capacity) {
-      grow();
+      grow(_capacity * 2);
     }
     _data[_size++] = value;
   }
@@ -66,7 +72,7 @@ class ArenaVector {
   template <typename... Args>
   T& emplace_back(Args&&... args) {
     if (_size >= _capacity) {
-      grow();
+      grow(_capacity * 2);
     }
     T* target = &_data[_size++];
     new (target) T(std::forward<Args>(args)...);
@@ -90,8 +96,7 @@ class ArenaVector {
   bool empty() const { return _size == 0; }
 
  private:
-  void grow() {
-    size_t newCapacity = _capacity * 2;
+  void grow(size_t newCapacity) {
     T* newData = _arena->allocate<T>(newCapacity);
     assert(newData && "Arena out of memory");
     std::memcpy(newData, _data, sizeof(T) * _size);

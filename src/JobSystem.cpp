@@ -3,7 +3,37 @@
 #include "JobGraph.hpp"
 
 JobSystem::JobSystem(size_t threadCount)
-    : _threadCount(threadCount), _frameArena(1024 * 1024), _longLivedArena(1024 * 1024) {}
+    : _frameArena(1024 * 1024), _longLivedArena(1024 * 1024), _internalArena(1024 * 1024), _threadCount(threadCount), _workers(&_internalArena, _threadCount), _globalQueue(512), _highPriorityQueue(512) {
+  for (size_t i = 0; i < _threadCount; ++i) {
+    WorkerThread worker;
+    worker.index = i;
+    worker.system = this;
+    worker.thread = std::thread([&worker]() { worker.run(); });
+    _workers.emplace_back(std::move(worker));
+  }
+}
+
+JobSystem::~JobSystem() {
+  for (auto& worker : _workers) {
+    worker.running = false;
+  }
+
+  for (auto& worker : _workers) {
+    if (worker.thread.joinable()) {
+      worker.thread.join();
+    }
+  }
+}
+
+bool JobSystem::getNextJob(Job& out) {
+  if (_highPriorityQueue.try_dequeue(out)) {
+    return true;
+  }
+  if (_globalQueue.try_dequeue(out)) {
+    return true;
+  }
+  return false;
+}
 
 void JobSystem::submit(Job& job) {}
 
