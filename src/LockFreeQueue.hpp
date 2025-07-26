@@ -9,6 +9,8 @@
 #include <thread>
 #include <type_traits>
 
+#include "FrameArena.hpp"
+
 //
 //  References:
 //
@@ -21,9 +23,14 @@
 template <typename T>
 class LockFreeQueue {
  public:
-  explicit LockFreeQueue(size_t capacity) : _capacity(capacity), _head(0), _tail(0) {
+  explicit LockFreeQueue(size_t capacity, FrameArena* arena) : _capacity(capacity), _head(0), _tail(0), _arena(arena) {
     assert(capacity >= 1 && "Capacity must be at least 1");
-    _buffer = new Slot[capacity];
+
+    if (_arena) {
+      _buffer = _arena->allocate<Slot>(capacity);
+    } else {
+      _buffer = new Slot[capacity];
+    }
 
     for (size_t i = 0; i < capacity; ++i) {
       _buffer[i].sequence.store(i, std::memory_order_relaxed);
@@ -38,7 +45,10 @@ class LockFreeQueue {
         slot.data_ptr()->~T();
       }
     }
-    delete[] _buffer;
+
+    if (!_arena) {
+      delete[] _buffer;
+    }
   }
 
   LockFreeQueue(const LockFreeQueue&) = delete;
@@ -139,5 +149,6 @@ class LockFreeQueue {
   Slot* _buffer;
   alignas(64) std::atomic<size_t> _head;
   alignas(64) std::atomic<size_t> _tail;
+  FrameArena* _arena;
   std::atomic<bool> _valid{true};
 };

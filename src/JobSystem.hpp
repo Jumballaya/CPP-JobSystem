@@ -19,7 +19,7 @@ enum MemoryClass {
 };
 
 struct WorkerThread {
-  WorkerThread() : queue(256), localArena(512 * 1024) {}
+  WorkerThread() : localArena(512 * 1024), queue(256, &localArena) {}
 
   ~WorkerThread() = default;
   WorkerThread(const WorkerThread&) = delete;
@@ -28,8 +28,8 @@ struct WorkerThread {
   WorkerThread& operator=(WorkerThread&&) = default;
 
   std::thread thread;
-  LockFreeQueue<Job> queue;
   FrameArena localArena;
+  LockFreeQueue<Job> queue;
 
   size_t index = 0;
   std::atomic<bool> running = true;
