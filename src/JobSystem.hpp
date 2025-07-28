@@ -43,7 +43,14 @@ struct WorkerThread {
       Job job;
 
       if (queue.try_dequeue(job)) {
-        job.fn(job.userData);
+        if (job.fn) {
+          job.fn(job.userData);
+        }
+        if (job.control) {
+          bool wasCancelled = job.control->cancelRequested.load(std::memory_order_relaxed);
+          JobState newState = wasCancelled ? JobState::Cancelled : JobState::Completed;
+          job.control->state.store(newState, std::memory_order_release);
+        }
         if (job.onComplete) {
           job.onComplete(job.userData);
         }
@@ -51,7 +58,9 @@ struct WorkerThread {
       }
 
       if (system && system->getNextJob(job)) {
-        job.fn(job.userData);
+        if (job.fn) {
+          job.fn(job.userData);
+        }
         if (job.onComplete) {
           job.onComplete(job.userData);
         }

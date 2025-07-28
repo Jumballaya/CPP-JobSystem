@@ -61,10 +61,32 @@ void JobSystem::submitGraph(JobGraph& graph) {
   graph.submitReadyJobs(*this);
 }
 
-bool JobSystem::isComplete(const JobHandle& handle) { return false; }
-bool JobSystem::isCancelled(const JobHandle& handle) { return false; }
-bool JobSystem::cancel(JobHandle handle) { return false; }
-void JobSystem::wait(JobHandle handle) {}
+bool JobSystem::isComplete(const JobHandle& handle) {
+  if (!handle.isValid()) return false;
+  JobState state = handle.control->state.load(std::memory_order_acquire);
+  return state == JobState::Completed || state == JobState::Cancelled;
+}
+
+bool JobSystem::isCancelled(const JobHandle& handle) {
+  if (!handle.isValid()) return false;
+  return handle.control->cancelRequested.load(std::memory_order_acquire);
+}
+
+bool JobSystem::cancel(JobHandle handle) {
+  // @TODO: Check for JobFlags::Cancelable (add the JobFlags to the control block?)
+  if (!handle.isValid()) return false;
+  handle.control->cancelRequested.store(true, std::memory_order_release);
+  return true;
+}
+
+void JobSystem::wait(JobHandle handle) {
+  if (!handle.isValid()) return;
+  while (true) {
+    JobState state = handle.control->state.load(std::memory_order_acquire);
+    if (state == JobState::Completed || state == JobState::Cancelled) return;
+    std::this_thread::yield();
+  }
+}
 
 FrameArena& JobSystem::frameArena() { return _frameArena; }
 FrameArena& JobSystem::longLivedArena() { return _longLivedArena; }

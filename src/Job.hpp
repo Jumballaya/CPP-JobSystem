@@ -7,7 +7,7 @@
 
 enum JobFlags : uint32_t {
   None = 0,
-  HighPriority = 1 << 0,    // @TODO: Schedules ahead of normal jobs (used for rendering, audio, user input)
+  HighPriority = 1 << 0,
   LongRunning = 1 << 1,     // @TODO: Long running jobs (helps avoid stealing threads for jobs that block (I/O, streaming))
   Cancelable = 1 << 2,      // @TODO: Cancelable jobs (enables early-out for expensive or unneeded jobs)
   FrameLocal = 1 << 3,      // @TODO: Signals the job's memory is frame-bound (tells system that it may safely reset arena after the frame ends)

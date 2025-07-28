@@ -16,9 +16,6 @@ void JobGraph::setDependencies(GraphNodeHandle node, std::initializer_list<Graph
 }
 
 void JobGraph::reset() {
-  for (auto& slot : _slots) {
-    slot = JobGraphNodeSlot(_arena);
-  }
   _slots.clear();
 }
 
@@ -39,12 +36,14 @@ void JobGraph::onJobComplete(GraphNodeHandle node, JobSystem& system) {
     assert(dep.index < _slots.size());
     JobGraphNodeSlot& depSlot = _slots[dep.index];
 
-    assert(depSlot.inDegree > 0);
-    --depSlot.inDegree;
+    uint32_t prev = depSlot.inDegree.fetch_sub(1, std::memory_order_acq_rel);
+    assert(prev > 0);
 
-    if (depSlot.inDegree == 0 && !depSlot.scheduled) {
-      depSlot.scheduled = true;
-      system.submit(depSlot.job);
+    if (prev == 1) {
+      bool expected = false;
+      if (depSlot.scheduled.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+        system.submit(depSlot.job);
+      }
     }
   }
 }
