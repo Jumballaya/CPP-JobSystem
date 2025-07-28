@@ -2,27 +2,67 @@
 
 #include "JobGraph.hpp"
 
+void WorkerThread::run() {
+  ThreadArenaRegistry::set(&localArena);
+
+  while (running) {
+    Job job;
+
+    if (queue.try_dequeue(job)) {
+      if (job.fn) {
+        job.fn(job.userData);
+      }
+      if (job.control) {
+        bool wasCancelled = job.control->cancelRequested.load(std::memory_order_relaxed);
+        JobState newState = wasCancelled ? JobState::Cancelled : JobState::Completed;
+        job.control->state.store(newState, std::memory_order_release);
+      }
+      if (job.onComplete) {
+        job.onComplete(job.userData);
+      }
+      continue;
+    }
+
+    if (system && system->getNextJob(job)) {
+      if (job.fn) {
+        job.fn(job.userData);
+      }
+      if (job.onComplete) {
+        job.onComplete(job.userData);
+      }
+      continue;
+    }
+
+    std::this_thread::yield();
+  }
+}
+
 JobSystem::JobSystem(size_t threadCount)
-    : _frameArena(1024 * 1024), _longLivedArena(1024 * 1024), _internalArena(1024 * 1024), _threadCount(threadCount), _workers(&_internalArena, _threadCount), _globalQueue(512, &_internalArena), _highPriorityQueue(512, &_internalArena) {
+    : _frameArena(1024 * 1024), _longLivedArena(1024 * 1024), _internalArena(1024 * 1024), _threadCount(threadCount), _workers(_threadCount), _globalQueue(512, &_internalArena), _highPriorityQueue(512, &_internalArena) {
   for (size_t i = 0; i < _threadCount; ++i) {
-    WorkerThread worker;
-    worker.index = i;
-    worker.system = this;
-    worker.thread = std::thread([&worker]() { worker.run(); });
+    auto worker = std::make_unique<WorkerThread>(512 * 1024);
+    worker->index = i;
+    worker->system = this;
+    worker->thread = std::thread([workerPtr = worker.get()]() {
+      workerPtr->run();
+    });
     _workers.emplace_back(std::move(worker));
   }
 }
 
 JobSystem::~JobSystem() {
   for (auto& worker : _workers) {
-    worker.running = false;
+    worker->running = false;
   }
 
   for (auto& worker : _workers) {
-    if (worker.thread.joinable()) {
-      worker.thread.join();
+    if (worker->thread.joinable()) {
+      worker->thread.join();
     }
   }
+
+  _highPriorityQueue.shutdown();
+  _globalQueue.shutdown();
 }
 
 bool JobSystem::getNextJob(Job& out) {
@@ -58,7 +98,7 @@ JobGraph JobSystem::createGraph(MemoryClass cls) {
 }
 
 void JobSystem::submitGraph(JobGraph& graph) {
-  graph.submitReadyJobs(*this);
+  graph.submitReadyJobs();
 }
 
 bool JobSystem::isComplete(const JobHandle& handle) {

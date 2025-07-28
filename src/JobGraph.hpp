@@ -31,11 +31,13 @@ class JobGraph {
   GraphNodeHandle addNode(Args&&... args);
 
   void setDependencies(GraphNodeHandle node, std::initializer_list<GraphNodeHandle> deps);
-  void submitReadyJobs(JobSystem& system);
+  void submitReadyJobs();
   void reset();
 
   void setOnGraphComplete(OnGraphCompleteFn fn, void* userData);
   void onJobComplete(GraphNodeHandle node, JobSystem& system);
+
+  FrameArena& frameArena();
 
  private:
   FrameArena* _arena = nullptr;
@@ -50,7 +52,6 @@ template <typename Node, typename... Args>
 GraphNodeHandle JobGraph::addNode(Args&&... args) {
   static_assert(sizeof...(Args) == 1 || sizeof...(Args) == 2);
 
-  assert(_slots.size() < _slots.capacity() && "JobGraph capacity exceeded");
   _slots.emplace_back(_arena);
   auto& slot = _slots.back();
 
@@ -59,18 +60,28 @@ GraphNodeHandle JobGraph::addNode(Args&&... args) {
   control->cancelRequested.store(false);
   slot.job.control = control;
 
+  JobHandle jobHandle{.id = static_cast<uint32_t>(_slots.size() - 1), .generation = 1};
+
   GraphNodeHandle handle{
       .index = static_cast<uint32_t>(_slots.size() - 1),
       .generation = 1,
-      .control = control};
+      .jobHandle = jobHandle,
+  };
 
-  if constexpr (IsJobGraphNodeWithOutput<Node, std::decay_t<Args>...>) {
+  using Tuple = std::tuple<std::decay_t<Args>...>;
+  using InputT = std::decay_t<std::remove_pointer_t<std::tuple_element_t<0, Tuple>>>;
+
+  if constexpr (sizeof...(Args) == 2) {
+    using OutputT = std::decay_t<std::remove_pointer_t<std::tuple_element_t<1, Tuple>>>;
+
+    static_assert(IsJobGraphNodeWithOutput<Node, InputT, OutputT>);
+
     const auto* input = std::get<0>(std::forward_as_tuple(args...));
     auto* output = std::get<1>(std::forward_as_tuple(args...));
 
     struct JobData {
-      const std::decay_t<decltype(*input)>* in;
-      std::decay_t<decltype(*output)>* out;
+      const InputT* in;
+      OutputT* out;
       FrameArena* arena;
       JobSystem* system;
       JobGraph* graph;
@@ -78,12 +89,7 @@ GraphNodeHandle JobGraph::addNode(Args&&... args) {
     };
 
     auto* data = _arena->allocate<JobData>();
-    data->in = input;
-    data->out = output;
-    data->arena = _arena;
-    data->system = _system;
-    data->graph = this;
-    data->handle = handle;
+    *data = {input, output, _arena, _system, this, handle};
 
     slot.job.fn = [](void* userData) {
       auto* d = static_cast<JobData*>(userData);
@@ -97,11 +103,14 @@ GraphNodeHandle JobGraph::addNode(Args&&... args) {
     slot.job.arena = _arena;
     slot.job.flags = JobFlags::None;
 
-  } else if constexpr (IsJobGraphNodeNoOutput<Node, std::decay_t<Args>...>) {
+  } else {
+    static_assert(sizeof...(Args) == 1);
+    static_assert(IsJobGraphNodeNoOutput<Node, InputT>);
+
     const auto* input = std::get<0>(std::forward_as_tuple(args...));
 
     struct JobData {
-      const std::decay_t<decltype(*input)>* in;
+      const InputT* in;
       FrameArena* arena;
       JobSystem* system;
       JobGraph* graph;
@@ -109,11 +118,7 @@ GraphNodeHandle JobGraph::addNode(Args&&... args) {
     };
 
     auto* data = _arena->allocate<JobData>();
-    data->in = input;
-    data->arena = _arena;
-    data->system = _system;
-    data->graph = this;
-    data->handle = handle;
+    *data = {input, _arena, _system, this, handle};
 
     slot.job.fn = [](void* userData) {
       auto* d = static_cast<JobData*>(userData);
@@ -126,9 +131,6 @@ GraphNodeHandle JobGraph::addNode(Args&&... args) {
     slot.job.userData = data;
     slot.job.arena = _arena;
     slot.job.flags = JobFlags::None;
-
-  } else {
-    static_assert(always_false<Node>, "Node does not conform to JobGraphNode concept");
   }
 
   return handle;

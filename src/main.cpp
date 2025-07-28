@@ -1,35 +1,74 @@
+#include <chrono>
 #include <iostream>
+#include <thread>
 
-#include "ArenaVector.hpp"
-#include "FrameArena.hpp"
-#include "ThreadArenaRegistry.hpp"
+#include "JobGraph.hpp"
+#include "JobGraphNode.hpp"
+#include "JobSystem.hpp"
 
-struct Entity {
-  float x;
-  float y;
-  float z;
-  float velocity;
-  float acceleration;
+// Simulated workload with input + output
+struct ComputeNode : JobGraphNode<int, int> {
+  static void run(const int* input, int* output, FrameArena* arena) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Simulate CPU work
+    *output = (*input) * 2;
+    std::cout << "[ComputeNode] Computed: " << *input << " -> " << *output << "\n";
+  }
+};
+
+// Workload with only input
+struct PrintNode : JobGraphNode<std::string> {
+  static void run(const std::string* message, FrameArena* arena) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::cout << "[PrintNode] Message: " << *message << "\n";
+  }
+};
+
+// Final node that consumes two inputs
+struct CombineNode : JobGraphNode<std::pair<int, int>> {
+  static void run(const std::pair<int, int>* in, FrameArena* arena) {
+    int result = in->first + in->second;
+    std::cout << "[CombineNode] Sum: " << in->first << " + " << in->second << " = " << result << "\n";
+  }
 };
 
 int main() {
-  FrameArena arena(1024);
-  ThreadArenaRegistry::set(&arena);
+  std::cout << "🧵 Launching JobSystem...\n";
 
-  ArenaVector<Entity> ents(&arena, 10);
+  JobSystem system(std::thread::hardware_concurrency());
 
-  for (int i = 0; i < 10; ++i) {
-    float x = i * 10.0f;
-    float y = i * 20.0f;
-    float z = i * 30.0f;
-    float vel = i / 10.0f;
-    float acc = (i * vel);
-    ents.emplace_back(x, y, z, vel, acc);
-  }
+  auto graph = system.createGraph(MemoryClass::Frame);
 
-  for (auto& ent : ents) {
-    std::cout << "Entity:\nPosition: <" << ent.x << ", " << ent.y << ", " << ent.z << ">\nVelocity: " << ent.velocity << "\nAcceleration: " << ent.acceleration << "\n";
-  }
+  // Input/output buffers (in real engine, these might live in components or asset jobs)
+  int inputA = 10, inputB = 20;
+  int outputA = 0, outputB = 0;
 
-  ThreadArenaRegistry::clear();
+  std::string printMsg = "Hello from JobGraph!";
+
+  auto nodeA = graph.addNode<ComputeNode>(&inputA, &outputA);
+  auto nodeB = graph.addNode<ComputeNode>(&inputB, &outputB);
+  auto nodePrint = graph.addNode<PrintNode>(&printMsg);
+
+  // CombineNode waits on A + B
+  auto combineInput = graph.frameArena().allocate<std::pair<int, int>>();
+  auto nodeCombine = graph.addNode<CombineNode>(combineInput);
+
+  // Setup dependencies:
+  graph.setDependencies(nodeCombine, {nodeA, nodeB});
+  graph.setDependencies(nodePrint, {nodeCombine});
+
+  // OnGraphComplete (optional)
+  graph.setOnGraphComplete([](GraphNodeHandle handle, void* userData) {
+    std::cout << "✅ JobGraph finished for root node: " << handle.index << "\n";
+  },
+                           nullptr);
+
+  // Submit graph
+  system.submitGraph(graph);
+
+  // Wait on root node (or the one you care about)
+  JobHandle rootHandle = nodePrint.jobHandle;
+  system.wait(rootHandle);
+
+  std::cout << "🏁 All jobs complete.\n";
+  return 0;
 }

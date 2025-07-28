@@ -15,6 +15,7 @@
 struct GraphNodeHandle {
   uint32_t index = 0;
   uint32_t generation = 0;
+  JobHandle jobHandle;
 
   bool isValid() const { return generation != 0; }
   bool operator==(const GraphNodeHandle&) const = default;

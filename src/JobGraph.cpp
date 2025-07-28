@@ -19,10 +19,10 @@ void JobGraph::reset() {
   _slots.clear();
 }
 
-void JobGraph::submitReadyJobs(JobSystem& system) {
+void JobGraph::submitReadyJobs() {
   for (auto& slot : _slots) {
     if (slot.inDegree == 0 && !slot.scheduled) {
-      system.submit(slot.job);
+      _system->submit(slot.job);
       slot.scheduled = true;
     }
   }
@@ -52,3 +52,5 @@ void JobGraph::setOnGraphComplete(OnGraphCompleteFn fn, void* userData) {
   _onComplete = fn;
   _onCompleteUserData = userData;
 }
+
+FrameArena& JobGraph::frameArena() { return *_arena; }

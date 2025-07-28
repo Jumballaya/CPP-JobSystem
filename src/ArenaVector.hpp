@@ -89,6 +89,15 @@ class ArenaVector {
   const T* begin() const { return _data; }
   const T* end() const { return _data + _size; }
 
+  T& back() {
+    assert(_size > 0);
+    return _data[_size - 1];
+  }
+  const T& back() const {
+    assert(_size > 0);
+    return _data[_size - 1];
+  }
+
   std::span<T> span() { return {_data, _size}; }
   const T* data() const { return _data; }
   size_t size() const { return _size; }

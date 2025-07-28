@@ -18,8 +18,12 @@ enum MemoryClass {
   LongLived
 };
 
+class JobSystem;
 struct WorkerThread {
   WorkerThread() : localArena(512 * 1024), queue(256, &localArena) {}
+
+  explicit WorkerThread(size_t arenaSize)
+      : localArena(arenaSize), queue(256, &localArena) {}
 
   ~WorkerThread() = default;
   WorkerThread(const WorkerThread&) = delete;
@@ -36,40 +40,7 @@ struct WorkerThread {
 
   JobSystem* system = nullptr;
 
-  void run() {
-    ThreadArenaRegistry::set(&localArena);
-
-    while (running) {
-      Job job;
-
-      if (queue.try_dequeue(job)) {
-        if (job.fn) {
-          job.fn(job.userData);
-        }
-        if (job.control) {
-          bool wasCancelled = job.control->cancelRequested.load(std::memory_order_relaxed);
-          JobState newState = wasCancelled ? JobState::Cancelled : JobState::Completed;
-          job.control->state.store(newState, std::memory_order_release);
-        }
-        if (job.onComplete) {
-          job.onComplete(job.userData);
-        }
-        continue;
-      }
-
-      if (system && system->getNextJob(job)) {
-        if (job.fn) {
-          job.fn(job.userData);
-        }
-        if (job.onComplete) {
-          job.onComplete(job.userData);
-        }
-        continue;
-      }
-
-      std::this_thread::yield();
-    }
-  }
+  void run();
 };
 
 class JobSystem {
@@ -100,7 +71,8 @@ class JobSystem {
 
   size_t _threadCount;
 
-  ArenaVector<WorkerThread> _workers;
+  // @TODO: Use a PMR vector and custom allocator for the WorkerThreads to avoid all of this
+  std::vector<std::unique_ptr<WorkerThread>> _workers;
 
   LockFreeQueue<Job> _globalQueue;
   LockFreeQueue<Job> _highPriorityQueue;
