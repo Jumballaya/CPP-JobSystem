@@ -32,7 +32,7 @@ struct CombineNode : JobGraphNode<std::pair<int, int>> {
 };
 
 int main() {
-  std::cout << "🧵 Launching JobSystem...\n";
+  std::cout << "Launching JobSystem...\n";
 
   JobSystem system(std::thread::hardware_concurrency());
 
@@ -58,7 +58,7 @@ int main() {
 
   // OnGraphComplete (optional)
   graph.setOnGraphComplete([](GraphNodeHandle handle, void* userData) {
-    std::cout << "✅ JobGraph finished for root node: " << handle.index << "\n";
+    std::cout << "JobGraph finished for root node: " << handle.index << "\n";
   },
                            nullptr);
 
@@ -66,9 +66,7 @@ int main() {
   system.submitGraph(graph);
 
   // Wait on root node (or the one you care about)
-  JobHandle rootHandle = nodePrint.jobHandle;
-  system.wait(rootHandle);
+  system.wait(nodeCombine.jobHandle);
 
-  std::cout << "🏁 All jobs complete.\n";
-  return 0;
+  std::cout << "All jobs complete.\n";
 }

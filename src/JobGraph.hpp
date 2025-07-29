@@ -60,7 +60,7 @@ GraphNodeHandle JobGraph::addNode(Args&&... args) {
   control->cancelRequested.store(false);
   slot.job.control = control;
 
-  JobHandle jobHandle{.id = static_cast<uint32_t>(_slots.size() - 1), .generation = 1};
+  JobHandle jobHandle{.id = static_cast<uint32_t>(_slots.size()), .generation = 1, .control = control};
 
   GraphNodeHandle handle{
       .index = static_cast<uint32_t>(_slots.size() - 1),
@@ -94,6 +94,9 @@ GraphNodeHandle JobGraph::addNode(Args&&... args) {
     slot.job.fn = [](void* userData) {
       auto* d = static_cast<JobData*>(userData);
       Node::run(d->in, d->out, d->arena);
+      if (d->handle.jobHandle.isValid()) {
+        d->handle.jobHandle.control->state.store(JobState::Completed, std::memory_order_release);
+      }
     };
     slot.job.onComplete = [](void* userData) {
       auto* d = static_cast<JobData*>(userData);
@@ -123,6 +126,9 @@ GraphNodeHandle JobGraph::addNode(Args&&... args) {
     slot.job.fn = [](void* userData) {
       auto* d = static_cast<JobData*>(userData);
       Node::run(d->in, d->arena);
+      if (d->handle.jobHandle.isValid()) {
+        d->handle.jobHandle.control->state.store(JobState::Completed, std::memory_order_release);
+      }
     };
     slot.job.onComplete = [](void* userData) {
       auto* d = static_cast<JobData*>(userData);

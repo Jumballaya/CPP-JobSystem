@@ -1,5 +1,7 @@
 #include "JobSystem.hpp"
 
+#include <iostream>
+
 #include "JobGraph.hpp"
 
 void WorkerThread::run() {
@@ -13,6 +15,7 @@ void WorkerThread::run() {
         job.fn(job.userData);
       }
       if (job.control) {
+        std::cout << "[JobSystem] job finished and has a controlblock\n";
         bool wasCancelled = job.control->cancelRequested.load(std::memory_order_relaxed);
         JobState newState = wasCancelled ? JobState::Cancelled : JobState::Completed;
         job.control->state.store(newState, std::memory_order_release);
